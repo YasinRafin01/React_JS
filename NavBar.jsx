@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import './NavBar.css';
-
 
 const regions = [
   { name: "I'm flexible", img: "https://media.istockphoto.com/id/936410448/vector/black-outlined-world-map.jpg?s=612x612&w=0&k=20&c=4NC6zyuo9Bcz6W9MBsUHbTTj5f4vP1JRpyKJL7mdEvY=" },
@@ -16,45 +17,65 @@ const Header = () => {
   const [showRegionGrid, setShowRegionGrid] = useState(false);
   const [selectedDestination, setSelectedDestination] = useState('Search Destination');
   const destinationSearchRef = useRef(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isCheckIn, setIsCheckIn] = useState(true);
-  const datePickerRef = useRef(null);
-
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [initialDate, setInitialDate] = useState(null);
+  const [isSettingCheckIn, setIsSettingCheckIn] = useState(true);
+  const [checkInRange, setCheckInRange] = useState(null);
+  const [checkOutRange, setCheckOutRange] = useState(null);
+  const [calendarVisible, setCalendarVisible] = useState(false); // Added state for calendar visibility
 
   const toggleDestinationSearch = (e) => {
     e.preventDefault();
-    console.log('toggleDestinationSearch called', showDestinationSearch);
     setShowDestinationSearch(prevState => !prevState);
-    setShowRegionGrid(false);
   };
 
   const handleWhereButtonClick = () => {
-    console.log('handleWhereButtonClick called');
     setShowRegionGrid(prevState => !prevState);
-    
   };
 
   const handleRegionClick = (regionName) => {
-    console.log('handleRegionClick called with:', regionName);
     setSelectedDestination(regionName);
     setShowRegionGrid(false);
-   
   };
+
+  const handleDateChange = (date) => {
+    if (isSettingCheckIn) {
+      setStartDate(date);
+      setInitialDate(date);
+      setIsSettingCheckIn(false); // Next click should set Check Out date
+    } else {
+      setEndDate(date);
+      setIsSettingCheckIn(true); // Next click should set Check In date
+    }
+    // Do not close the calendar when a date is selected
+  };
+
+  const handleFlexibleRangeChange = (range) => {
+    if (initialDate) {
+      if (!endDate) {
+        setCheckInRange(range);
+        setStartDate(new Date(initialDate.getTime() + range * 24 * 60 * 60 * 1000));
+      } else {
+        setCheckOutRange(range);
+        setEndDate(new Date(initialDate.getTime() + range * 24 * 60 * 60 * 1000));
+      }
+    }
+  };
+
   const handleCheckInClick = () => {
-    setIsCheckIn(true);
-    setShowDatePicker(true);
+    setIsSettingCheckIn(true);
+    setCalendarVisible(!calendarVisible); // Toggle visibility
   };
 
   const handleCheckOutClick = () => {
-    setIsCheckIn(false);
-    setShowDatePicker(true);
+    setIsSettingCheckIn(false);
+    setCalendarVisible(!calendarVisible); // Toggle visibility
   };
-
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (destinationSearchRef.current && !destinationSearchRef.current.contains(event.target)) {
-        //setShowDestinationSearch(false);
         setShowRegionGrid(false);
       }
     };
@@ -65,189 +86,10 @@ const Header = () => {
     };
   }, []);
 
-  console.log('Render - showDestinationSearch:', showDestinationSearch);
-  console.log('Render - showRegionGrid:', showRegionGrid);
-
-
-  // handling clicking calender
-  useEffect(() => {
-    const datePicker = datePickerRef.current;
-    const datePickerBody = datePicker.querySelector('#datePickerBody');
-    const prevMonth = datePicker.querySelector('#prevMonth');
-    const nextMonth = datePicker.querySelector('#nextMonth');
-    const dateRangeOptions = datePicker.querySelectorAll('.date-range-option');
-    
-    let currentDate = new Date();
-    let selectedCheckIn = null;
-    let selectedCheckOut = null;
-    let isDatePickerVisible = false;
-    let selectedDateRangeOption = "";
-
-    const toggleDatePicker = () => {
-      isDatePickerVisible = !isDatePickerVisible;
-      datePicker.style.display = isDatePickerVisible ? 'block' : 'none';
-      if (isDatePickerVisible) {
-        renderCalendar();
-      }
-    };
-
-    const renderCalendar = () => {
-      datePickerBody.innerHTML = '';
-      const months = [getCurrentMonthDays(), getNextMonthDays()];
-
-      months.forEach((month, index) => {
-        const monthElement = document.createElement('div');
-        monthElement.className = 'month';
-
-        const monthHeader = document.createElement('div');
-        monthHeader.className = 'month-header';
-        monthHeader.textContent = new Date(currentDate.getFullYear(), currentDate.getMonth() + index).toLocaleString('default', { month: 'long', year: 'numeric' });
-        monthElement.appendChild(monthHeader);
-
-        const weekdaysElement = document.createElement('div');
-        weekdaysElement.className = 'weekdays';
-        ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(day => {
-          const dayElement = document.createElement('div');
-          dayElement.textContent = day;
-          weekdaysElement.appendChild(dayElement);
-        });
-        monthElement.appendChild(weekdaysElement);
-
-        const daysElement = document.createElement('div');
-        daysElement.className = 'days';
-        month.forEach(day => {
-          const dayElement = document.createElement('div');
-          if (day) {
-            dayElement.textContent = day.getDate();
-            dayElement.addEventListener('click', (e) => {
-              e.stopPropagation(); // Prevent event bubbling
-              selectDate(day);
-            });
-            if (isDateSelected(day)) {
-              dayElement.classList.add('selected');
-            }
-          } else {
-            dayElement.classList.add('empty');
-          }
-          daysElement.appendChild(dayElement);
-        });
-        monthElement.appendChild(daysElement);
-
-        datePickerBody.appendChild(monthElement);
-      });
-    };
-
-    const getCurrentMonthDays = () => {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const lastDate = new Date(year, month + 1, 0).getDate();
-
-      const days = new Array(42).fill(null);
-
-      for (let i = 0; i < lastDate; i++) {
-        days[i + firstDay] = new Date(year, month, i + 1);
-      }
-
-      return days;
-    };
-
-    const getNextMonthDays = () => {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth() + 1;
-      const firstDay = new Date(year, month, 1).getDay();
-      const lastDate = new Date(year, month + 1, 0).getDate();
-
-      const days = new Array(42).fill(null);
-
-      for (let i = 0; i < lastDate; i++) {
-        days[i + firstDay] = new Date(year, month, i + 1);
-      }
-
-      return days;
-    };
-
-    const selectDate = (date) => {
-      if (!selectedCheckIn) {
-        selectedCheckIn = date;
-        selectedCheckOut = null;
-      } else if (selectedCheckIn && !selectedCheckOut) {
-        if (selectedCheckIn.getTime() === date.getTime()) {
-          selectedCheckIn = null;
-        } else {
-          selectedCheckOut = date;
-          if (selectedCheckOut < selectedCheckIn) {
-            [selectedCheckIn, selectedCheckOut] = [selectedCheckOut, selectedCheckIn];
-          }
-        }
-      } else if (selectedCheckIn && selectedCheckOut) {
-        if (selectedCheckOut.getTime() === date.getTime()) {
-          selectedCheckOut = null;
-        } else if (selectedCheckIn.getTime() === date.getTime()) {
-          selectedCheckIn = null;
-        } else {
-          selectedCheckIn = date;
-          selectedCheckOut = null;
-        }
-      }
-
-      updateCheckInText();
-      updateCheckOutText();
-      renderCalendar();
-    };
-
-    const isDateSelected = (date) => {
-      return (selectedCheckIn && date.getTime() === selectedCheckIn.getTime()) ||
-             (selectedCheckOut && date.getTime() === selectedCheckOut.getTime());
-    };
-
-    const updateCheckInText = () => {
-      const timeElement = document.getElementById("time");
-      timeElement.textContent = selectedCheckIn ? formatDate(selectedCheckIn) + selectedDateRangeOption : 'Add date';
-    };
-
-    const updateCheckOutText = () => {
-      const timeElement1 = document.getElementById("time1");
-      timeElement1.textContent = selectedCheckOut ? formatDate(selectedCheckOut) + selectedDateRangeOption : 'Add date';
-    };
-
-    const formatDate = (date) => {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
-
-    dateRangeOptions.forEach(option => {
-      option.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent event bubbling
-        dateRangeOptions.forEach(opt => opt.classList.remove('selected'));
-        e.target.classList.add('selected');
-        selectedDateRangeOption = e.target.getAttribute('data-days');
-        if (!selectedCheckOut) {
-          updateCheckInText();
-        } else {
-          updateCheckOutText();
-        }
-      });
-    });
-
-    prevMonth.addEventListener('click', () => {
-      currentDate.setMonth(currentDate.getMonth() - 1);
-      renderCalendar();
-    });
-
-    nextMonth.addEventListener('click', () => {
-      currentDate.setMonth(currentDate.getMonth() + 1);
-      renderCalendar();
-    });
-
-    // Cleanup function to remove event listeners
-    return () => {
-      dateRangeOptions.forEach(option => option.removeEventListener('click', handleDateRangeOptionClick));
-      prevMonth.removeEventListener('click', handlePrevMonthClick);
-      nextMonth.removeEventListener('click', handleNextMonthClick);
-    };
-  }, [showDatePicker]);
-
-
+  const formatDateString = (date, range) => {
+    if (!date) return 'Add dates';
+    return `${date.toDateString()}${range !== null ? ` ±${range} days` : ''}`;
+  };
 
   return (
     <div className='header-menu-container'>
@@ -284,55 +126,54 @@ const Header = () => {
           </button>
         </div>
       </nav>
-      {showDestinationSearch && (
-        <div className={`destination-search ${showDestinationSearch ? 'show' : ''}`} ref={destinationSearchRef}>
-          <div className="navbar">
-            <button className="navbar-item" onClick={handleWhereButtonClick}>
-              Where<br /><span style={{ color: 'slategray' }}>{selectedDestination}</span>
-            </button>
-            <button className="navbar-item" onClick={handleCheckInClick}>
-              Check in<br /><span id="time" style={{ color: 'slategray' }}>Add Dates</span>
-            </button>
-            <button className="navbar-item" onClick={handleCheckOutClick}>
-              Check out<br /><span id="time1" style={{ color: 'slategray' }}>Add Dates</span>
-            </button>
-            <button className="navbar-item">
-              Who<br /><span style={{ color: 'slategray' }}>Add guests</span>
-            </button>
-            <button className="search-button">Search</button>
-          </div>
-          <div className={`region-grid ${showRegionGrid ? 'show' : ''}`}>
-            {regions.map((region, index) => (
-              <div key={index} className="region-item" onClick={() => handleRegionClick(region.name)}>
-                <img src={region.img} alt={region.name} style={{ width: '130px', height: '100px' }} />
-                <span>{region.name}</span>
-              </div>
-            ))}
-          </div>
-          
+      <div className={`destination-search ${showDestinationSearch ? 'show' : ''}`} ref={destinationSearchRef}>
+        <div className="navbar">
+          <button className="navbar-item" onClick={handleWhereButtonClick}>
+            Where<br /><span style={{ color: 'slategray' }}>{selectedDestination}</span>
+          </button>
+          <button className="navbar-item" onClick={handleCheckInClick}>
+            Check in<br /><span style={{ color: 'slategray' }}>{formatDateString(startDate, checkInRange)}</span>
+          </button>
+          <button className="navbar-item" onClick={handleCheckOutClick}>
+            Check out<br /><span style={{ color: 'slategray' }}>{formatDateString(endDate, checkOutRange)}</span>
+          </button>
+          <button className="navbar-item">
+            Who<br /><span style={{ color: 'slategray' }}>Add guests</span>
+          </button>
+          <button className="search-button">Search</button>
         </div>
-      )}
-      {showDatePicker && (
-        <div className="date-picker" ref={datePickerRef}>
-          <div className="date-picker-header">
-            <div>
-              <button className="date-range-option" data-days="">Exact dates</button>
-              <button className="date-range-option" data-days="±1">± 1 day</button>
-              <button className="date-range-option selected" data-days="±2">± 2 days</button>
-              <button className="date-range-option" data-days="±3">± 3 days</button>
-              <button className="date-range-option" data-days="±7">± 7 days</button>
+        <div className={`region-grid ${showRegionGrid ? 'show' : ''}`}>
+          {regions.map((region, index) => (
+            <div key={index} className="region-item" onClick={() => handleRegionClick(region.name)}>
+              <img src={region.img} alt={region.name} style={{ width: '130px', height: '100px' }} />
+              <span>{region.name}</span>
             </div>
-          </div>
-          <div className="button-container">
-            <button id="prevMonth" className="styled-button">Previous</button>
-            <button id="nextMonth" className="styled-button">Next</button>
-          </div>
-          <div className="date-picker-body" id="datePickerBody"></div>
+          ))}
+        </div>
+      </div>
+
+      {calendarVisible && (
+        <div className="calendar-container">
+          <DatePicker
+            selected={isSettingCheckIn ? startDate : endDate}
+            onChange={handleDateChange}
+            startDate={startDate}
+            endDate={endDate}
+            selectsStart={isSettingCheckIn}
+            selectsEnd={!isSettingCheckIn}
+            inline
+          />
+          {startDate && (
+            <div className="flexible-options">
+              <button onClick={() => handleFlexibleRangeChange(0)}>Exact dates</button>
+              <button onClick={() => handleFlexibleRangeChange(1)}>± 1 day</button>
+              <button onClick={() => handleFlexibleRangeChange(2)}>± 2 days</button>
+              <button onClick={() => handleFlexibleRangeChange(3)}>± 3 days</button>
+              <button onClick={() => handleFlexibleRangeChange(7)}>± 7 days</button>
+            </div>
+          )}
         </div>
       )}
-
-      
-
     </div>
   );
 };
